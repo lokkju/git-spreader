@@ -4,6 +4,16 @@ dynamic = ["version"]
 description = "Make 3am commit binges look like responsible adult behavior"
 readme = "README.md"
 license = "LicenseRef-Polyform-Shield-1.0.0"
+keywords = ["git", "commits", "timestamps", "rewrite", "contribution-graph", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Version Control :: Git",
+]
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.15",
