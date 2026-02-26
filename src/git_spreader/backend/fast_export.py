@@ -47,9 +47,7 @@ class FastExportImportBackend:
         our schedule list by position.
         """
         # Build a map from original SHA to new dates
-        sha_to_schedule: dict[str, ScheduledCommit] = {
-            sc.commit.sha: sc for sc in schedule
-        }
+        sha_to_schedule: dict[str, ScheduledCommit] = {sc.commit.sha: sc for sc in schedule}
 
         # Export the commit range
         export_stream = _run_git(
@@ -98,9 +96,7 @@ class FastExportImportBackend:
         # Pattern for author/committer lines:
         # author Name <email> timestamp timezone
         # committer Name <email> timestamp timezone
-        author_pattern = re.compile(
-            r"^(author|committer)\s+(.+?)\s+<(.+?)>\s+(\d+)\s+([+-]\d{4})$"
-        )
+        author_pattern = re.compile(r"^(author|committer)\s+(.+?)\s+<(.+?)>\s+(\d+)\s+([+-]\d{4})$")
 
         for line in lines:
             match = author_pattern.match(line)

@@ -111,8 +111,7 @@ class TestFlowState:
         # Create 10 commits spaced 60 minutes apart
         base = datetime(2025, 2, 3, 9, 0, tzinfo=UTC)
         scheduled = [
-            _make_scheduled(sha=f"c{i}", dt=base + timedelta(minutes=60 * i))
-            for i in range(10)
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(minutes=60 * i)) for i in range(10)
         ]
         result = mod.modify_schedule(scheduled, config, rng)
         assert len(result) == 10
@@ -141,8 +140,7 @@ class TestJitter:
         config = SpreaderConfig()
         base = datetime(2025, 2, 3, 9, 0, tzinfo=UTC)
         scheduled = [
-            _make_scheduled(sha=f"c{i}", dt=base + timedelta(minutes=5 * i))
-            for i in range(10)
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(minutes=5 * i)) for i in range(10)
         ]
         result = mod.modify_schedule(scheduled, config, rng)
         for i in range(1, len(result)):
@@ -160,10 +158,7 @@ class TestJitter:
         ]
         result = mod.modify_schedule(scheduled, config, rng)
         # At least one timestamp should have changed from the original
-        changed = any(
-            result[i].new_author_date != original_dates[i]
-            for i in range(len(result))
-        )
+        changed = any(result[i].new_author_date != original_dates[i] for i in range(len(result)))
         assert changed
 
 

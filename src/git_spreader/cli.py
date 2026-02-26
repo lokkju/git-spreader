@@ -272,9 +272,7 @@ def preview(
         commit_range, start, end, working_hours, seed, verbose
     )
     _print_preview_table(scheduled)
-    console.print(
-        "\n[dim]Run `git-spreader spread` with the same arguments to apply.[/dim]"
-    )
+    console.print("\n[dim]Run `git-spreader spread` with the same arguments to apply.[/dim]")
 
 
 @app.command()

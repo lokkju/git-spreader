@@ -62,10 +62,7 @@ def test_two_commits_different_complexity():
 
 def test_all_same_size():
     config = SpreaderConfig(curve="linear")
-    commits = [
-        _make_commit(sha=f"c{i}", lines=50, files=3, diff_bytes=200)
-        for i in range(5)
-    ]
+    commits = [_make_commit(sha=f"c{i}", lines=50, files=3, diff_bytes=200) for i in range(5)]
     result = score_commits(commits, config)
     # All should have the same score
     scores = {r.score for r in result}
@@ -115,9 +112,7 @@ def test_gap_bounds():
 
 def test_custom_weights():
     # Weight only lines
-    config = SpreaderConfig(
-        weight_lines=1.0, weight_files=0.0, weight_bytes=0.0, curve="linear"
-    )
+    config = SpreaderConfig(weight_lines=1.0, weight_files=0.0, weight_bytes=0.0, curve="linear")
     commits = [
         _make_commit(sha="c0", lines=10, files=100, diff_bytes=10000),
         _make_commit(sha="c1", lines=100, files=1, diff_bytes=10),

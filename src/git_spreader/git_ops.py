@@ -115,9 +115,7 @@ def _get_diff_bytes(repo_path: Path, sha: str) -> int:
     try:
         result = _run_git(repo_path, "diff", "-p", f"{sha}^", sha)
     except subprocess.CalledProcessError:
-        result = _run_git(
-            repo_path, "diff", "-p", "4b825dc642cb6eb9a060e54bf899d69f82cf7108", sha
-        )
+        result = _run_git(repo_path, "diff", "-p", "4b825dc642cb6eb9a060e54bf899d69f82cf7108", sha)
     return len(result.stdout.encode("utf-8"))
 
 
@@ -135,14 +133,10 @@ def detect_pushed_commits(repo_path: Path, commit_range: str) -> list[str]:
 
     # Get commits that are on the remote
     try:
-        range_result = _run_git(
-            repo_path, "log", "--format=%H", commit_range
-        )
+        range_result = _run_git(repo_path, "log", "--format=%H", commit_range)
         range_shas = set(range_result.stdout.strip().split("\n"))
 
-        remote_result = _run_git(
-            repo_path, "log", "--format=%H", upstream
-        )
+        remote_result = _run_git(repo_path, "log", "--format=%H", upstream)
         remote_shas = set(remote_result.stdout.strip().split("\n"))
 
         return [sha for sha in range_shas if sha in remote_shas]
@@ -155,9 +149,7 @@ def detect_gpg_signatures(repo_path: Path, commit_range: str) -> list[str]:
 
     Returns list of SHAs with signatures.
     """
-    result = _run_git(
-        repo_path, "log", "--format=%H %G?", commit_range
-    )
+    result = _run_git(repo_path, "log", "--format=%H %G?", commit_range)
     signed = []
     for line in result.stdout.strip().split("\n"):
         if not line:

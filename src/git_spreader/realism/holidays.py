@@ -27,9 +27,7 @@ class HolidayModifier:
         holiday_dates = self._get_holiday_dates(slots, config)
         return [s for s in slots if s.start.date() not in holiday_dates]
 
-    def _get_holiday_dates(
-        self, slots: list[TimeSlot], config: SpreaderConfig
-    ) -> set[date]:
+    def _get_holiday_dates(self, slots: list[TimeSlot], config: SpreaderConfig) -> set[date]:
         if not slots:
             return set()
 

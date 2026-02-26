@@ -14,9 +14,7 @@ class JitterModifier:
     """Adds random ±offset to all timestamps to avoid suspiciously round times."""
 
     def is_enabled(self, config: SpreaderConfig) -> bool:
-        return (
-            config.jitter_min_offset_minutes != 0 or config.jitter_max_offset_minutes != 0
-        )
+        return config.jitter_min_offset_minutes != 0 or config.jitter_max_offset_minutes != 0
 
     def modify_schedule(
         self,
