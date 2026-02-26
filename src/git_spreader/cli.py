@@ -124,6 +124,16 @@ def _run_pipeline(
     config = load_config(repo_path, cli_overrides, profile_overrides)
     rng = random.Random(seed)
 
+    # Warn if configured timezone differs from local system timezone
+    from git_spreader.models import _detect_local_timezone
+
+    local_tz = _detect_local_timezone()
+    if config.timezone != local_tz:
+        console.print(
+            f"[yellow]Warning: configured timezone '{config.timezone}' "
+            f"differs from system timezone '{local_tz}'.[/yellow]"
+        )
+
     # Enumerate commits
     if verbose:
         console.print(f"[dim]Enumerating commits in {commit_range}...[/dim]")

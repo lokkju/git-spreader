@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,39 @@ class TimeSlot:
         return (self.end - self.start).total_seconds() / 60
 
 
+def _detect_local_timezone() -> str:
+    """Detect the system's local IANA timezone name.
+
+    Tries in order: $TZ env var, /etc/timezone, /etc/localtime symlink.
+    Falls back to UTC if detection fails.
+    """
+    # 1. TZ environment variable
+    tz_env = os.environ.get("TZ")
+    if tz_env and "/" in tz_env:
+        return tz_env
+
+    # 2. /etc/timezone (Debian/Ubuntu)
+    etc_timezone = Path("/etc/timezone")
+    if etc_timezone.is_file():
+        try:
+            name = etc_timezone.read_text().strip()
+            if name:
+                return name
+        except OSError:
+            pass
+
+    # 3. /etc/localtime symlink (most Linux, macOS)
+    try:
+        link = os.readlink("/etc/localtime")
+        parts = link.split("zoneinfo/")
+        if len(parts) > 1:
+            return parts[-1]
+    except OSError:
+        pass
+
+    return "UTC"
+
+
 @dataclass(frozen=True)
 class SpreaderConfig:
     """All configuration for a git-spreader run."""
@@ -64,7 +99,7 @@ class SpreaderConfig:
     working_hours_start: str = "09:00"
     working_hours_end: str = "17:00"
     working_days: tuple[str, ...] = ("Mon", "Tue", "Wed", "Thu", "Fri")
-    timezone: str = "America/Los_Angeles"
+    timezone: str = field(default_factory=_detect_local_timezone)
 
     # Complexity scoring
     weight_lines: float = 0.5
