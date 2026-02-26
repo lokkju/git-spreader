@@ -1,6 +1,6 @@
 [project]
 name = "git-spreader"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Redistribute git commit timestamps across a realistic working schedule"
 readme = "git-spreader-plan.md"
 license = "LicenseRef-Polyform-Shield-1.0.0"
@@ -16,8 +16,11 @@ dependencies = [
 git-spreader = "git_spreader.cli:app"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/git_spreader"]
