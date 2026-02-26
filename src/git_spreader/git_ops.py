@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from git_spreader.models import CommitInfo
@@ -36,8 +36,7 @@ def enumerate_commits(repo_path: Path, commit_range: str) -> list[CommitInfo]:
     Returns:
         List of CommitInfo in topological order (oldest first).
     """
-    # Get commit metadata
-    # Format: sha%x00author_name%x00author_email%x00author_date%x00committer_name%x00committer_email%x00committer_date%x00subject%x00parent_shas
+    # Get commit metadata (NUL-separated fields)
     fmt = "%H%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%s%x00%P"
     result = _run_git(
         repo_path,

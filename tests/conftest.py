@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import os
 import subprocess
-from datetime import datetime, timezone
+from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Generator
 
 import pytest
 
@@ -45,7 +45,7 @@ def temp_repo(tmp_path: Path) -> Generator[Path, None, None]:
         filepath = repo / f"file{i}.txt"
         filepath.write_text(f"content {i}\n" + ("extra line\n" * (i * 10)))
         run_git("add", ".")
-        ts = datetime(2025, 2, 15, 2 + i, 14, 33, tzinfo=timezone.utc)
+        ts = datetime(2025, 2, 15, 2 + i, 14, 33, tzinfo=UTC)
         ts_str = ts.strftime("%Y-%m-%dT%H:%M:%S%z")
         env_with_date = {
             **env,

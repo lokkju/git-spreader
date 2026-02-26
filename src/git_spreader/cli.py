@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import random
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -66,7 +65,7 @@ def _parse_date(date_str: str) -> datetime:
             console.print(f"[red]Error: cannot parse date '{date_str}'[/red]")
             raise typer.Exit(1)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt
 
 
@@ -219,11 +218,11 @@ def _print_preview_table(scheduled: list[ScheduledCommit]) -> None:
 def spread(
     commit_range: str = typer.Argument(help="Git revision range (e.g. HEAD~10..HEAD)"),
     start: str = typer.Option(..., "--start", help="Start date for redistribution"),
-    end: Optional[str] = typer.Option(None, "--end", help="End date (auto-calculated if omitted)"),
-    working_hours: Optional[str] = typer.Option(
+    end: str | None = typer.Option(None, "--end", help="End date (auto-calculated if omitted)"),
+    working_hours: str | None = typer.Option(
         None, "--working-hours", help="Override working hours (e.g. 09:00-17:00)"
     ),
-    seed: Optional[int] = typer.Option(None, "--seed", help="Random seed for reproducibility"),
+    seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ) -> None:
     """Rewrite commit timestamps to spread across a realistic schedule."""
@@ -261,11 +260,11 @@ def spread(
 def preview(
     commit_range: str = typer.Argument(help="Git revision range (e.g. HEAD~10..HEAD)"),
     start: str = typer.Option(..., "--start", help="Start date for redistribution"),
-    end: Optional[str] = typer.Option(None, "--end", help="End date (auto-calculated if omitted)"),
-    working_hours: Optional[str] = typer.Option(
+    end: str | None = typer.Option(None, "--end", help="End date (auto-calculated if omitted)"),
+    working_hours: str | None = typer.Option(
         None, "--working-hours", help="Override working hours (e.g. 09:00-17:00)"
     ),
-    seed: Optional[int] = typer.Option(None, "--seed", help="Random seed for reproducibility"),
+    seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ) -> None:
     """Preview the proposed schedule without modifying anything."""

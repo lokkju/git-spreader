@@ -66,7 +66,8 @@ class FlowStateModifier:
         anchor = scheduled[start_idx].new_author_date
         for j in range(1, size):
             idx = start_idx + j
-            burst_gap = timedelta(minutes=rng.uniform(self.MIN_BURST_MINUTES, self.MAX_BURST_MINUTES))
+            burst_minutes = rng.uniform(self.MIN_BURST_MINUTES, self.MAX_BURST_MINUTES)
+            burst_gap = timedelta(minutes=burst_minutes)
             new_time = anchor + burst_gap * j
             scheduled[idx].new_author_date = new_time
             scheduled[idx].new_committer_date = new_time

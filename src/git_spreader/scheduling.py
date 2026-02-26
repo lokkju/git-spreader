@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from git_spreader.models import ScheduledCommit, ScoredCommit, SpreaderConfig, TimeSlot
 

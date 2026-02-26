@@ -51,9 +51,6 @@ class FastExportImportBackend:
             sc.commit.sha: sc for sc in schedule
         }
 
-        # Get the branch name
-        branch = _run_git(repo_path, "rev-parse", "--abbrev-ref", "HEAD").strip()
-
         # Export the commit range
         export_stream = _run_git(
             repo_path,
