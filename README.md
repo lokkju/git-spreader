@@ -45,10 +45,33 @@ git-spreader spread HEAD~10..HEAD --start 2025-01-01 --seed 42
 git-spreader spread HEAD~20..HEAD --start 2025-01-01 --end 2025-01-31
 ```
 
-### Override working hours
+### Override working hours and days
 
 ```bash
 git-spreader spread HEAD~10..HEAD --start 2025-02-01 --working-hours 08:00-16:00
+git-spreader spread HEAD~10..HEAD --start 2025-02-01 --working-days Mon,Wed,Fri,Sat,Sun
+```
+
+### Profiles
+
+Built-in presets for common scheduling patterns:
+
+| Profile | Hours | Days | Description |
+|---------|-------|------|-------------|
+| `default` | 09:00–17:00 | Mon–Fri | Standard office hours |
+| `night-owl` | 22:00–04:00 | Mon–Sun | Late-night hacker |
+| `side-project` | 18:00–23:00 | Mon–Sun | Evenings after work/school |
+| `weekend-warrior` | 09:00–18:00 | Sat–Sun | Weekends only |
+
+```bash
+git-spreader spread HEAD~10..HEAD --start 2025-02-01 --profile side-project
+```
+
+Explicit CLI flags override profile values:
+
+```bash
+# Use side-project profile but change hours to 20:00-23:00
+git-spreader spread HEAD~10..HEAD --start 2025-02-01 --profile side-project --working-hours 20:00-23:00
 ```
 
 ### Manage configuration

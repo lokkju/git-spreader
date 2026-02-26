@@ -20,6 +20,7 @@ from git_spreader.git_ops import (
     enumerate_commits,
 )
 from git_spreader.models import ScheduledCommit, SpreaderConfig
+from git_spreader.profiles import PROFILES, get_profile
 from git_spreader.realism import apply_schedule_modifiers, apply_slot_modifiers
 from git_spreader.scheduling import (
     auto_end_date,
@@ -69,16 +70,41 @@ def _parse_date(date_str: str) -> datetime:
     return dt
 
 
+def _parse_working_days(days_str: str) -> tuple[str, ...]:
+    """Parse comma-separated day abbreviations into a tuple."""
+    valid_days = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+    days = tuple(d.strip() for d in days_str.split(","))
+    invalid = [d for d in days if d not in valid_days]
+    if invalid:
+        console.print(
+            f"[red]Error: invalid day(s): {', '.join(invalid)}. "
+            f"Use: Mon,Tue,Wed,Thu,Fri,Sat,Sun[/red]"
+        )
+        raise typer.Exit(1)
+    return days
+
+
 def _run_pipeline(
     commit_range: str,
     start: str,
     end: str | None,
     working_hours: str | None,
+    working_days: str | None,
+    profile: str | None,
     seed: int | None,
     verbose: bool,
 ) -> tuple[list[ScheduledCommit], SpreaderConfig, Path]:
     """Run the full spread pipeline and return scheduled commits."""
     repo_path = _get_repo_path()
+
+    # Load profile overrides
+    profile_overrides: dict | None = None
+    if profile:
+        try:
+            profile_overrides = get_profile(profile)
+        except KeyError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise typer.Exit(1)
 
     # Build CLI overrides
     cli_overrides: dict = {}
@@ -87,8 +113,10 @@ def _run_pipeline(
         if len(parts) == 2:
             cli_overrides["working_hours_start"] = parts[0]
             cli_overrides["working_hours_end"] = parts[1]
+    if working_days:
+        cli_overrides["working_days"] = _parse_working_days(working_days)
 
-    config = load_config(repo_path, cli_overrides)
+    config = load_config(repo_path, cli_overrides, profile_overrides)
     rng = random.Random(seed)
 
     # Enumerate commits
@@ -222,12 +250,18 @@ def spread(
     working_hours: str | None = typer.Option(
         None, "--working-hours", help="Override working hours (e.g. 09:00-17:00)"
     ),
+    working_days: str | None = typer.Option(
+        None, "--working-days", help="Override working days (e.g. Mon,Wed,Fri,Sat,Sun)"
+    ),
+    profile: str | None = typer.Option(
+        None, "--profile", help=f"Use a built-in profile ({', '.join(sorted(PROFILES))})"
+    ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ) -> None:
     """Rewrite commit timestamps to spread across a realistic schedule."""
     scheduled, config, repo_path = _run_pipeline(
-        commit_range, start, end, working_hours, seed, verbose
+        commit_range, start, end, working_hours, working_days, profile, seed, verbose
     )
 
     # Show preview first
@@ -264,12 +298,18 @@ def preview(
     working_hours: str | None = typer.Option(
         None, "--working-hours", help="Override working hours (e.g. 09:00-17:00)"
     ),
+    working_days: str | None = typer.Option(
+        None, "--working-days", help="Override working days (e.g. Mon,Wed,Fri,Sat,Sun)"
+    ),
+    profile: str | None = typer.Option(
+        None, "--profile", help=f"Use a built-in profile ({', '.join(sorted(PROFILES))})"
+    ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ) -> None:
     """Preview the proposed schedule without modifying anything."""
     scheduled, config, repo_path = _run_pipeline(
-        commit_range, start, end, working_hours, seed, verbose
+        commit_range, start, end, working_hours, working_days, profile, seed, verbose
     )
     _print_preview_table(scheduled)
     console.print("\n[dim]Run `git-spreader spread` with the same arguments to apply.[/dim]")

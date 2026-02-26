@@ -132,8 +132,9 @@ def _config_to_toml(config: SpreaderConfig) -> dict[str, Any]:
 def load_config(
     repo_path: Path | None = None,
     cli_overrides: dict[str, Any] | None = None,
+    profile_overrides: dict[str, Any] | None = None,
 ) -> SpreaderConfig:
-    """Load config with precedence: CLI > repo .git-spreader.toml > global config > defaults."""
+    """Load config with precedence: CLI > profile > repo config > global config > defaults."""
     base = asdict(DEFAULTS)
 
     # Layer 1: global config
@@ -146,7 +147,11 @@ def load_config(
         repo_overrides = _load_toml_file(repo_config_path)
         base.update(repo_overrides)
 
-    # Layer 3: CLI overrides
+    # Layer 3: profile overrides
+    if profile_overrides:
+        base.update({k: v for k, v in profile_overrides.items() if v is not None})
+
+    # Layer 4: CLI overrides
     if cli_overrides:
         # Filter out None values (unset CLI flags)
         base.update({k: v for k, v in cli_overrides.items() if v is not None})
