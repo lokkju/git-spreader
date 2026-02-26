@@ -1,7 +1,7 @@
 [project]
 name = "git-spreader"
 dynamic = ["version"]
-description = "Redistribute git commit timestamps across a realistic working schedule"
+description = "Make 3am commit binges look like responsible adult behavior"
 readme = "README.md"
 license = "LicenseRef-Polyform-Shield-1.0.0"
 requires-python = ">=3.11"

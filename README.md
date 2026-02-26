@@ -4,9 +4,9 @@
 [![PyPI](https://img.shields.io/pypi/v/git-spreader)](https://pypi.org/project/git-spreader/)
 [![Python](https://img.shields.io/pypi/pyversions/git-spreader)](https://pypi.org/project/git-spreader/)
 
-Redistribute git commit timestamps across a realistic working schedule.
+**A tool to make 3am commit binges look like responsible adult behavior** — because the lie the contribution graph tells should at least be a plausible one.
 
-Takes compressed bursts of commits (weekend hackathons, late-night sessions) and respaces them to look like steady, sustainable work during business hours — with realistic human touches like jitter, flow-state clustering, occasional late-night/weekend commits, and random days off.
+Takes compressed bursts of commits (weekend hackathons, late-night sessions) and respaces them across realistic working hours — with jitter, flow-state clustering, occasional late-night/weekend commits, and random days off.
 
 ## Installation
 
