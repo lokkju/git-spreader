@@ -57,8 +57,14 @@ def build_time_slots(
                 slot_end = next_day.replace(hour=work_end_h, minute=work_end_m, second=0)
             else:
                 slot_end = current_date.replace(hour=work_end_h, minute=work_end_m, second=0)
-            if slot_start >= start and slot_end <= end + timedelta(days=1):
-                slots.append(TimeSlot(start=slot_start, end=slot_end))
+            # For midnight-crossing slots, only require slot_start within range
+            # since slot_end naturally extends into the next day
+            if crosses_midnight:
+                if slot_start >= start and slot_start <= end_date:
+                    slots.append(TimeSlot(start=slot_start, end=slot_end))
+            else:
+                if slot_start >= start and slot_end <= end + timedelta(days=1):
+                    slots.append(TimeSlot(start=slot_start, end=slot_end))
         current_date += timedelta(days=1)
 
     return slots
