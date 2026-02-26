@@ -120,6 +120,42 @@ def test_profile_unknown(temp_repo: Path, monkeypatch):
     assert "unknown profile" in result.output.lower()
 
 
+def test_default_timezone_is_local():
+    """Default timezone should be the system's local timezone, not hardcoded.
+
+    Regression: default was America/Los_Angeles regardless of system timezone.
+    """
+    from git_spreader.models import SpreaderConfig, _detect_local_timezone
+
+    config = SpreaderConfig()
+    # The default should match the system's detected local timezone
+    ZoneInfo(config.timezone)  # must be a valid IANA name
+    assert config.timezone == _detect_local_timezone()
+
+
+def test_timezone_mismatch_warning(temp_repo: Path, monkeypatch):
+    """When config timezone differs from local, a warning should be shown."""
+    config_path = temp_repo / ".git-spreader.toml"
+    config_path.write_text(
+        '[schedule]\ntimezone = "Asia/Tokyo"\n'
+        'working_hours = { start = "09:00", end = "17:00" }\n'
+    )
+    monkeypatch.chdir(temp_repo)
+    result = runner.invoke(
+        app,
+        [
+            "preview",
+            "HEAD~3..HEAD",
+            "--start",
+            "2025-03-01",
+            "--seed",
+            "42",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "timezone" in result.output.lower()
+
+
 def test_timestamps_use_configured_timezone(temp_repo: Path, monkeypatch):
     """Timestamps should use the configured timezone, not hardcoded UTC.
 
