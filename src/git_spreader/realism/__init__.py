@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+from datetime import timedelta
 from typing import Protocol, runtime_checkable
 
 from git_spreader.models import ScheduledCommit, SpreaderConfig, TimeSlot
@@ -68,6 +69,20 @@ def apply_slot_modifiers(
     return slots
 
 
+def _enforce_monotonicity(scheduled: list[ScheduledCommit]) -> list[ScheduledCommit]:
+    """Ensure timestamps are monotonically non-decreasing.
+
+    If a commit's timestamp is earlier than the previous commit's,
+    push it forward to 30 seconds after the previous commit.
+    """
+    for i in range(1, len(scheduled)):
+        if scheduled[i].new_author_date < scheduled[i - 1].new_author_date:
+            new_time = scheduled[i - 1].new_author_date + timedelta(seconds=30)
+            scheduled[i].new_author_date = new_time
+            scheduled[i].new_committer_date = new_time
+    return scheduled
+
+
 def apply_schedule_modifiers(
     scheduled: list[ScheduledCommit],
     config: SpreaderConfig,
@@ -79,6 +94,8 @@ def apply_schedule_modifiers(
         modifier = modifier_cls()
         if modifier.is_enabled(config):
             scheduled = modifier.modify_schedule(scheduled, config, rng)
+    # Enforce monotonicity after all modifiers to prevent timestamp inversions
+    scheduled = _enforce_monotonicity(scheduled)
     return scheduled
 
 

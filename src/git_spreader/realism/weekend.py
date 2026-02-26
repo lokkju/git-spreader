@@ -63,4 +63,11 @@ class WeekendModifier:
 
             current += timedelta(days=1)
 
+        # Enforce monotonicity: push forward any inversions
+        for i in range(1, len(result)):
+            if result[i].new_author_date < result[i - 1].new_author_date:
+                new_time = result[i - 1].new_author_date + timedelta(seconds=30)
+                result[i].new_author_date = new_time
+                result[i].new_committer_date = new_time
+
         return result
