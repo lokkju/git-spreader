@@ -137,8 +137,7 @@ def test_timezone_mismatch_warning(temp_repo: Path, monkeypatch):
     """When config timezone differs from local, a warning should be shown."""
     config_path = temp_repo / ".git-spreader.toml"
     config_path.write_text(
-        '[schedule]\ntimezone = "Asia/Tokyo"\n'
-        'working_hours = { start = "09:00", end = "17:00" }\n'
+        '[schedule]\ntimezone = "Asia/Tokyo"\nworking_hours = { start = "09:00", end = "17:00" }\n'
     )
     monkeypatch.chdir(temp_repo)
     result = runner.invoke(
@@ -191,6 +190,5 @@ def test_timestamps_use_configured_timezone(temp_repo: Path, monkeypatch):
         assert offset is not None
         # PST is -8h, PDT is -7h; either way, not +0000
         assert offset.total_seconds() != 0, (
-            f"Timestamp {sc.new_author_date} has UTC offset, "
-            f"expected {pst} offset"
+            f"Timestamp {sc.new_author_date} has UTC offset, expected {pst} offset"
         )
