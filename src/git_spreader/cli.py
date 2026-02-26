@@ -6,6 +6,7 @@ import random
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import typer
 from rich.console import Console
@@ -54,8 +55,12 @@ def _get_repo_path() -> Path:
         raise typer.Exit(1)
 
 
-def _parse_date(date_str: str) -> datetime:
-    """Parse a date string into a timezone-aware datetime."""
+def _parse_date(date_str: str, tz: ZoneInfo | None = None) -> datetime:
+    """Parse a date string into a timezone-aware datetime.
+
+    If the date string has no timezone info, uses the provided tz
+    (from config) or falls back to UTC.
+    """
     try:
         dt = datetime.fromisoformat(date_str)
     except ValueError:
@@ -66,7 +71,7 @@ def _parse_date(date_str: str) -> datetime:
             console.print(f"[red]Error: cannot parse date '{date_str}'[/red]")
             raise typer.Exit(1)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
+        dt = dt.replace(tzinfo=tz or UTC)
     return dt
 
 
@@ -154,10 +159,11 @@ def _run_pipeline(
                 f"gap={sc.gap_minutes:.0f}m — {sc.commit.subject}[/dim]"
             )
 
-    # Parse dates
-    start_dt = _parse_date(start)
+    # Parse dates using configured timezone
+    tz = ZoneInfo(config.timezone)
+    start_dt = _parse_date(start, tz)
     if end:
-        end_dt = _parse_date(end)
+        end_dt = _parse_date(end, tz)
     else:
         end_dt = auto_end_date(scored, start_dt, config)
         if verbose:
