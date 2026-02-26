@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]  # All branches, not tags
   pull_request:
     branches: [main]
   workflow_call:
@@ -15,7 +15,26 @@ permissions:
 
 jobs:
   lint:
-    uses: ./.github/workflows/lint.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv and set up Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Ruff check
+        run: uv run ruff check src/ tests/
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/
+
+      - name: Pyright
+        run: uv run pyright src/
 
   test:
     needs: lint
