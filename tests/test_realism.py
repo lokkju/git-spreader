@@ -6,6 +6,7 @@ import random
 from datetime import UTC, datetime, timedelta
 
 from git_spreader.models import ScheduledCommit, SpreaderConfig, TimeSlot
+from git_spreader.realism import apply_schedule_modifiers
 from git_spreader.realism.days_off import RandomDaysOffModifier
 from git_spreader.realism.flow_state import FlowStateModifier
 from git_spreader.realism.holidays import HolidayModifier
@@ -185,6 +186,27 @@ class TestLateNight:
         # Original commit order (by SHA) must be preserved
         assert [sc.commit.sha for sc in result] == [f"c{i}" for i in range(10)]
 
+    def test_timestamps_monotonic(self):
+        """After late night modifier, timestamps must be non-decreasing.
+
+        Regression: moving commits to late night could produce timestamps
+        earlier than the previous commit, creating parent > child inversions.
+        """
+        mod = LateNightModifier()
+        rng = random.Random(42)
+        config = SpreaderConfig(late_night_probability=1.0)
+        base = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)
+        scheduled = [
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(hours=4 * i), score=0.01)
+            for i in range(10)
+        ]
+        result = mod.modify_schedule(scheduled, config, rng)
+        for i in range(1, len(result)):
+            assert result[i].new_author_date >= result[i - 1].new_author_date, (
+                f"Timestamp inversion at index {i}: "
+                f"{result[i - 1].new_author_date} > {result[i].new_author_date}"
+            )
+
 
 class TestWeekend:
     def test_enabled(self):
@@ -208,3 +230,53 @@ class TestWeekend:
         ]
         result = mod.modify_schedule(scheduled, config, rng)
         assert [sc.commit.sha for sc in result] == [f"c{i}" for i in range(7)]
+
+    def test_timestamps_monotonic(self):
+        """After weekend modifier, timestamps must be non-decreasing.
+
+        Regression: moving commits to weekends could produce timestamps
+        earlier than the previous commit, creating parent > child inversions.
+        """
+        mod = WeekendModifier()
+        rng = random.Random(42)
+        config = SpreaderConfig(weekend_probability=1.0)
+        base = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)  # Monday
+        scheduled = [
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(days=i, hours=2), score=0.01)
+            for i in range(14)
+        ]
+        result = mod.modify_schedule(scheduled, config, rng)
+        for i in range(1, len(result)):
+            assert result[i].new_author_date >= result[i - 1].new_author_date, (
+                f"Timestamp inversion at index {i}: "
+                f"{result[i - 1].new_author_date} > {result[i].new_author_date}"
+            )
+
+
+class TestFullPipelineMonotonicity:
+    """After all realism modifiers, timestamps must be monotonically non-decreasing."""
+
+    def test_all_modifiers_preserve_monotonicity(self):
+        """apply_schedule_modifiers must produce monotonic timestamps.
+
+        Regression: late night and weekend modifiers could move commits to
+        times earlier than their parents, creating timestamp inversions.
+        """
+        rng = random.Random(42)
+        config = SpreaderConfig(
+            late_night_probability=0.5,
+            weekend_probability=0.5,
+            flow_state_clustering=True,
+        )
+        base = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)  # Monday
+        scheduled = [
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(hours=4 * i), score=0.1)
+            for i in range(20)
+        ]
+        result = apply_schedule_modifiers(scheduled, config, rng)
+        assert len(result) == 20
+        for i in range(1, len(result)):
+            assert result[i].new_author_date >= result[i - 1].new_author_date, (
+                f"Timestamp inversion at index {i}: "
+                f"{result[i - 1].new_author_date} > {result[i].new_author_date}"
+            )

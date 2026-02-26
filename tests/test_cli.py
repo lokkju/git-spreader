@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from typer.testing import CliRunner
 
@@ -117,3 +118,43 @@ def test_profile_unknown(temp_repo: Path, monkeypatch):
     )
     assert result.exit_code == 1
     assert "unknown profile" in result.output.lower()
+
+
+def test_timestamps_use_configured_timezone(temp_repo: Path, monkeypatch):
+    """Timestamps should use the configured timezone, not hardcoded UTC.
+
+    Regression: all timestamps were written with +0000 (UTC) regardless of
+    the timezone setting in config.
+    """
+    # Write a repo config with America/Los_Angeles timezone
+    config_path = temp_repo / ".git-spreader.toml"
+    config_path.write_text(
+        '[schedule]\ntimezone = "America/Los_Angeles"\n'
+        'working_hours = { start = "09:00", end = "17:00" }\n'
+    )
+    monkeypatch.chdir(temp_repo)
+    # Import internals to test the pipeline directly
+    from git_spreader.cli import _run_pipeline
+
+    scheduled, config, repo_path = _run_pipeline(
+        commit_range="HEAD~3..HEAD",
+        start="2025-03-01",
+        end=None,
+        working_hours=None,
+        working_days=None,
+        profile=None,
+        seed=42,
+        verbose=False,
+    )
+    assert config.timezone == "America/Los_Angeles"
+    pst = ZoneInfo("America/Los_Angeles")
+    for sc in scheduled:
+        # Timestamps should carry the configured timezone, not UTC
+        assert sc.new_author_date.tzinfo is not None
+        offset = sc.new_author_date.utcoffset()
+        assert offset is not None
+        # PST is -8h, PDT is -7h; either way, not +0000
+        assert offset.total_seconds() != 0, (
+            f"Timestamp {sc.new_author_date} has UTC offset, "
+            f"expected {pst} offset"
+        )

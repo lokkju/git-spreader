@@ -155,3 +155,44 @@ def test_auto_end_date_midnight_crossing():
     assert end > start
     # Should not return the 30-day fallback
     assert (end - start).days < 30
+
+
+def test_build_time_slots_midnight_crossing_boundary():
+    """Midnight-crossing slots on the last day of the range must not be excluded.
+
+    Regression: 19:00-02:00 with --end Feb 26 produced slot_end = Feb 27 02:00
+    which exceeded the boundary check (end + 1 day = Feb 27 00:00) and was dropped.
+    """
+    config = SpreaderConfig(
+        working_hours_start="19:00",
+        working_hours_end="02:00",
+        working_days=("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+    )
+    start = datetime(2025, 2, 10, tzinfo=UTC)
+    end = datetime(2025, 2, 26, tzinfo=UTC)
+    slots = build_time_slots(start, end, config)
+    # Should get a slot for every day in the range (17 days)
+    assert len(slots) == 17
+    # All slots should have 7 hours = 420 minutes of duration
+    for s in slots:
+        assert s.end > s.start
+        assert abs(s.duration_minutes - 420) < 1
+
+
+def test_midnight_crossing_no_negative_available_time():
+    """With midnight-crossing hours and --end, available time must not be negative.
+
+    Regression: 19:00-02:00 produced -15300m available time, compressing all commits.
+    """
+    config = SpreaderConfig(
+        working_hours_start="19:00",
+        working_hours_end="02:00",
+        working_days=("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+    )
+    start = datetime(2025, 2, 10, tzinfo=UTC)
+    end = datetime(2025, 2, 26, tzinfo=UTC)
+    slots = build_time_slots(start, end, config)
+    total_minutes = sum(s.duration_minutes for s in slots)
+    # 17 days * 7 hours = 7140 minutes (all days must be included)
+    assert total_minutes > 0
+    assert total_minutes >= 17 * 420
