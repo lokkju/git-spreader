@@ -2,7 +2,7 @@
 name = "git-spreader"
 dynamic = ["version"]
 description = "Redistribute git commit timestamps across a realistic working schedule"
-readme = "git-spreader-plan.md"
+readme = "README.md"
 license = "LicenseRef-Polyform-Shield-1.0.0"
 requires-python = ">=3.11"
 dependencies = [
