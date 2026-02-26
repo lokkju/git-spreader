@@ -51,6 +51,4 @@ class LateNightModifier:
                 result[i].new_author_date = new_time
                 result[i].new_committer_date = new_time
 
-        # Re-sort to maintain chronological order
-        result.sort(key=lambda sc: sc.new_author_date)
         return result

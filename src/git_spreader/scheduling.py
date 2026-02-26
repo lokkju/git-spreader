@@ -37,6 +37,11 @@ def build_time_slots(
     work_start_h, work_start_m = _parse_time(config.working_hours_start)
     work_end_h, work_end_m = _parse_time(config.working_hours_end)
 
+    # Detect midnight-crossing ranges (e.g. 22:00-04:00)
+    start_minutes = work_start_h * 60 + work_start_m
+    end_minutes = work_end_h * 60 + work_end_m
+    crosses_midnight = end_minutes <= start_minutes
+
     working_day_nums = {DAY_ABBREVS[d] for d in config.working_days}
 
     slots: list[TimeSlot] = []
@@ -46,7 +51,12 @@ def build_time_slots(
     while current_date <= end_date:
         if current_date.weekday() in working_day_nums:
             slot_start = current_date.replace(hour=work_start_h, minute=work_start_m, second=0)
-            slot_end = current_date.replace(hour=work_end_h, minute=work_end_m, second=0)
+            if crosses_midnight:
+                # End time is on the next day
+                next_day = current_date + timedelta(days=1)
+                slot_end = next_day.replace(hour=work_end_h, minute=work_end_m, second=0)
+            else:
+                slot_end = current_date.replace(hour=work_end_h, minute=work_end_m, second=0)
             if slot_start >= start and slot_end <= end + timedelta(days=1):
                 slots.append(TimeSlot(start=slot_start, end=slot_end))
         current_date += timedelta(days=1)
@@ -160,8 +170,13 @@ def auto_end_date(
     total_gap_minutes = sum(sc.gap_minutes for sc in scored)
     work_start_h, work_start_m = _parse_time(config.working_hours_start)
     work_end_h, work_end_m = _parse_time(config.working_hours_end)
-    hours_per_day = (work_end_h + work_end_m / 60) - (work_start_h + work_start_m / 60)
-    minutes_per_day = hours_per_day * 60
+    start_minutes = work_start_h * 60 + work_start_m
+    end_minutes = work_end_h * 60 + work_end_m
+    if end_minutes <= start_minutes:
+        # Midnight-crossing range (e.g. 22:00-04:00 = 360 minutes)
+        minutes_per_day = (24 * 60 - start_minutes) + end_minutes
+    else:
+        minutes_per_day = end_minutes - start_minutes
 
     if minutes_per_day <= 0:
         return start + timedelta(days=30)

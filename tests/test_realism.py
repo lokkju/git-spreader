@@ -171,6 +171,20 @@ class TestLateNight:
         mod = LateNightModifier()
         assert not mod.is_enabled(SpreaderConfig(late_night_probability=0.0))
 
+    def test_preserves_commit_order(self):
+        """Late night modifier must not reorder commits."""
+        mod = LateNightModifier()
+        rng = random.Random(42)
+        config = SpreaderConfig(late_night_probability=1.0)
+        base = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)
+        scheduled = [
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(minutes=30 * i), score=0.01)
+            for i in range(10)
+        ]
+        result = mod.modify_schedule(scheduled, config, rng)
+        # Original commit order (by SHA) must be preserved
+        assert [sc.commit.sha for sc in result] == [f"c{i}" for i in range(10)]
+
 
 class TestWeekend:
     def test_enabled(self):
@@ -180,3 +194,17 @@ class TestWeekend:
     def test_disabled_when_zero(self):
         mod = WeekendModifier()
         assert not mod.is_enabled(SpreaderConfig(weekend_probability=0.0))
+
+    def test_preserves_commit_order(self):
+        """Weekend modifier must not reorder commits."""
+        mod = WeekendModifier()
+        rng = random.Random(42)
+        config = SpreaderConfig(weekend_probability=1.0)
+        # Place commits across a week so there are weekends in range
+        base = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)  # Monday
+        scheduled = [
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(days=i, minutes=30), score=0.01)
+            for i in range(7)
+        ]
+        result = mod.modify_schedule(scheduled, config, rng)
+        assert [sc.commit.sha for sc in result] == [f"c{i}" for i in range(7)]

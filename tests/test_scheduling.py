@@ -119,3 +119,39 @@ def test_auto_end_date():
     end = auto_end_date(scored, start, config)
     # Should be after start
     assert end > start
+
+
+def test_build_time_slots_midnight_crossing():
+    """Hours like 22:00-04:00 should produce slots that span into the next day."""
+    config = SpreaderConfig(
+        working_hours_start="22:00",
+        working_hours_end="04:00",
+        working_days=("Mon", "Tue", "Wed", "Thu", "Fri"),
+    )
+    start = datetime(2025, 2, 3, tzinfo=UTC)  # Monday
+    end = datetime(2025, 2, 5, tzinfo=UTC)  # Wednesday
+    slots = build_time_slots(start, end, config)
+    assert len(slots) > 0
+    for s in slots:
+        assert s.end > s.start
+        assert s.duration_minutes > 0
+        # 22:00-04:00 = 6 hours = 360 minutes
+        assert abs(s.duration_minutes - 360) < 1
+
+
+def test_auto_end_date_midnight_crossing():
+    """auto_end_date should compute positive minutes_per_day for midnight-crossing hours."""
+    config = SpreaderConfig(
+        working_hours_start="22:00",
+        working_hours_end="04:00",
+        working_days=("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+    )
+    start = datetime(2025, 2, 3, tzinfo=UTC)
+    scored = [
+        ScoredCommit(commit=_make_commit(sha="c0"), score=0.5, gap_minutes=120),
+        ScoredCommit(commit=_make_commit(sha="c1"), score=0.5, gap_minutes=120),
+    ]
+    end = auto_end_date(scored, start, config)
+    assert end > start
+    # Should not return the 30-day fallback
+    assert (end - start).days < 30

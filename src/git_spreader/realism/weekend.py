@@ -63,5 +63,4 @@ class WeekendModifier:
 
             current += timedelta(days=1)
 
-        result.sort(key=lambda sc: sc.new_author_date)
         return result
