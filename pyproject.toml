@@ -1,0 +1,46 @@
+[project]
+name = "git-spreader"
+version = "0.1.0"
+description = "Redistribute git commit timestamps across a realistic working schedule"
+readme = "git-spreader-plan.md"
+license = "LicenseRef-Polyform-Shield-1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.15",
+    "rich>=13",
+    "holidays>=0.60",
+    "tomli-w>=1.0",
+]
+
+[project.scripts]
+git-spreader = "git_spreader.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/git_spreader"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.9",
+    "pyright>=1.1",
+]
+
+[tool.pyright]
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "basic"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
