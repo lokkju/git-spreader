@@ -4,6 +4,7 @@ dynamic = ["version"]
 description = "Make 3am commit binges look like responsible adult behavior"
 readme = "README.md"
 license = "LicenseRef-Polyform-Shield-1.0.0"
+license-files = ["LICENSE.md"]
 keywords = ["git", "commits", "timestamps", "rewrite", "contribution-graph", "cli"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -12,6 +13,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "License :: Other/Proprietary License",
     "Topic :: Software Development :: Version Control :: Git",
 ]
 requires-python = ">=3.11"
@@ -27,6 +29,7 @@ Homepage = "https://github.com/lokkju/git-spreader"
 Repository = "https://github.com/lokkju/git-spreader"
 Issues = "https://github.com/lokkju/git-spreader/issues"
 Changelog = "https://github.com/lokkju/git-spreader/releases"
+License = "https://polyformproject.org/licenses/shield/1.0.0"
 
 [project.scripts]
 git-spreader = "git_spreader.cli:app"
