@@ -22,6 +22,12 @@ dependencies = [
     "tomli-w>=1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/lokkju/git-spreader"
+Repository = "https://github.com/lokkju/git-spreader"
+Issues = "https://github.com/lokkju/git-spreader/issues"
+Changelog = "https://github.com/lokkju/git-spreader/releases"
+
 [project.scripts]
 git-spreader = "git_spreader.cli:app"
 
