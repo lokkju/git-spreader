@@ -6,7 +6,7 @@ import random
 from datetime import UTC, datetime, timedelta
 
 from git_spreader.models import ScheduledCommit, SpreaderConfig, TimeSlot
-from git_spreader.realism import apply_schedule_modifiers
+from git_spreader.realism import _enforce_monotonicity, apply_schedule_modifiers
 from git_spreader.realism.days_off import RandomDaysOffModifier
 from git_spreader.realism.flow_state import FlowStateModifier
 from git_spreader.realism.holidays import HolidayModifier
@@ -283,6 +283,22 @@ class TestWeekend:
                 f"{sc.commit.sha} moved {delta} days from its scheduled slot"
             )
         assert weekend_count > 0
+
+
+class TestEnforceMonotonicity:
+    def test_equal_timestamps_made_strictly_increasing(self):
+        """Identical timestamps must be separated, not left equal.
+
+        Equal author dates are ambiguous to order; the enforcement pass should
+        push later commits strictly after earlier ones.
+        """
+        dt = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)
+        scheduled = [_make_scheduled(sha=f"c{i}", dt=dt) for i in range(4)]
+        result = _enforce_monotonicity(scheduled)
+        for i in range(1, len(result)):
+            assert result[i].new_author_date > result[i - 1].new_author_date
+            # committer date stays in lockstep with author date
+            assert result[i].new_committer_date == result[i].new_author_date
 
 
 class TestFullPipelineMonotonicity:

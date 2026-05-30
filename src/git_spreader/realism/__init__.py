@@ -70,13 +70,14 @@ def apply_slot_modifiers(
 
 
 def _enforce_monotonicity(scheduled: list[ScheduledCommit]) -> list[ScheduledCommit]:
-    """Ensure timestamps are monotonically non-decreasing.
+    """Ensure timestamps are strictly increasing.
 
-    If a commit's timestamp is earlier than the previous commit's,
-    push it forward to 30 seconds after the previous commit.
+    If a commit's timestamp is at or before the previous commit's, push it
+    forward to 30 seconds after the previous commit. Equal timestamps are
+    separated too, so commit order is never ambiguous.
     """
     for i in range(1, len(scheduled)):
-        if scheduled[i].new_author_date < scheduled[i - 1].new_author_date:
+        if scheduled[i].new_author_date <= scheduled[i - 1].new_author_date:
             new_time = scheduled[i - 1].new_author_date + timedelta(seconds=30)
             scheduled[i].new_author_date = new_time
             scheduled[i].new_committer_date = new_time

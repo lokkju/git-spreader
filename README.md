@@ -77,7 +77,9 @@ git-spreader spread HEAD~10..HEAD --start 2025-02-01 --profile side-project --wo
 ### Manage configuration
 
 ```bash
+git-spreader init             # interactive first-run setup
 git-spreader config --show    # print effective config
+git-spreader config --edit    # open the global config in $EDITOR
 git-spreader config --reset   # reset to defaults
 ```
 
