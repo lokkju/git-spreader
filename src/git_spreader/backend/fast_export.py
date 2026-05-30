@@ -7,7 +7,22 @@ import subprocess
 import time
 from pathlib import Path
 
+from datetime import timedelta
+
 from git_spreader.models import ScheduledCommit
+
+
+def _format_tz_offset(utc_offset: timedelta) -> str:
+    """Format a UTC offset as a git-style ``+HHMM`` / ``-HHMM`` string.
+
+    Computes the sign once from the total seconds and formats the magnitude,
+    so half-hour zones west of UTC (e.g. ``-03:30``) are not rolled down to
+    the next whole hour by floor division.
+    """
+    total_seconds = int(utc_offset.total_seconds())
+    sign = "-" if total_seconds < 0 else "+"
+    mag = abs(total_seconds)
+    return f"{sign}{mag // 3600:02d}{(mag % 3600) // 60:02d}"
 
 
 def _run_git(repo_path: Path, *args: str, input_data: str | None = None) -> str:
@@ -122,17 +137,8 @@ class FastExportImportBackend:
                 # Convert datetime to unix timestamp + timezone offset
                 ts = int(new_date.timestamp())
                 # Use UTC offset from the datetime or default to +0000
-                if new_date.tzinfo:
-                    utc_offset = new_date.utcoffset()
-                    if utc_offset is not None:
-                        total_seconds = int(utc_offset.total_seconds())
-                        hours = total_seconds // 3600
-                        minutes = (abs(total_seconds) % 3600) // 60
-                        tz_str = f"{hours:+03d}{minutes:02d}"
-                    else:
-                        tz_str = "+0000"
-                else:
-                    tz_str = "+0000"
+                utc_offset = new_date.utcoffset() if new_date.tzinfo else None
+                tz_str = _format_tz_offset(utc_offset) if utc_offset is not None else "+0000"
 
                 result_lines.append(f"{role} {name} <{email}> {ts} {tz_str}")
 

@@ -3,14 +3,30 @@
 from __future__ import annotations
 
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
-from git_spreader.backend.fast_export import FastExportImportBackend
+from git_spreader.backend.fast_export import FastExportImportBackend, _format_tz_offset
 from git_spreader.git_ops import enumerate_commits
 from git_spreader.models import ScheduledCommit
+
+
+@pytest.mark.parametrize(
+    ("offset", "expected"),
+    [
+        (timedelta(hours=0), "+0000"),
+        (timedelta(hours=-7), "-0700"),
+        (timedelta(hours=5, minutes=30), "+0530"),
+        (timedelta(hours=-3, minutes=-30), "-0330"),  # Newfoundland
+        (timedelta(hours=-9, minutes=-30), "-0930"),  # Marquesas
+        (timedelta(hours=14), "+1400"),  # Line Islands
+    ],
+)
+def test_format_tz_offset(offset: timedelta, expected: str):
+    """Half-hour zones west of UTC must not roll the hour down."""
+    assert _format_tz_offset(offset) == expected
 
 
 @pytest.fixture
