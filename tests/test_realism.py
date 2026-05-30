@@ -252,6 +252,38 @@ class TestWeekend:
                 f"{result[i - 1].new_author_date} > {result[i].new_author_date}"
             )
 
+    def test_no_commit_moved_to_two_weekend_days(self):
+        """A commit must not be relocated to more than one weekend day.
+
+        Regression: the modifier picked the same global-lowest commits for every
+        weekend day, so one commit could be 'moved' repeatedly and end up far
+        from its scheduled slot.
+        """
+        mod = WeekendModifier()
+        rng = random.Random(7)
+        config = SpreaderConfig(weekend_probability=1.0)
+        # Span several weeks so multiple weekends trigger.
+        base = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)  # Monday
+        scheduled = [
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(days=i), score=i / 30)
+            for i in range(30)
+        ]
+        original = {sc.commit.sha: sc.new_author_date for sc in scheduled}
+        result = mod.modify_schedule(scheduled, config, rng)
+
+        # Each moved commit must land within a few days of where it started, and
+        # at least one weekend commit should exist (so we know moves happened).
+        weekend_count = 0
+        for sc in result:
+            day = sc.new_author_date.date()
+            if day.weekday() in (5, 6):
+                weekend_count += 1
+            delta = abs((sc.new_author_date - original[sc.commit.sha]).days)
+            assert delta <= 7, (
+                f"{sc.commit.sha} moved {delta} days from its scheduled slot"
+            )
+        assert weekend_count > 0
+
 
 class TestFullPipelineMonotonicity:
     """After all realism modifiers, timestamps must be monotonically non-decreasing."""
