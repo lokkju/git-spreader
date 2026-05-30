@@ -34,15 +34,29 @@ class WeekendModifier:
         min_date = min(sc.new_author_date for sc in result).date()
         max_date = max(sc.new_author_date for sc in result).date()
 
+        # Track commits already relocated so none is moved to two weekend days.
+        moved: set[int] = set()
+
         # Find weekend days in range
         current = min_date
         while current <= max_date:
             if current.weekday() in (5, 6):  # Saturday, Sunday
                 if rng.random() < config.weekend_probability:
-                    # Move 1-3 low-score commits to this weekend day
-                    n_to_move = rng.randint(1, min(3, len(result)))
-                    # Pick from lower-scoring commits
-                    candidates = sorted(range(len(result)), key=lambda i: result[i].score)
+                    # Only consider commits scheduled near this weekend (within a
+                    # few days), so a commit lands close to where it would have
+                    # been rather than being yanked across the whole range.
+                    candidates = [
+                        i
+                        for i in range(len(result))
+                        if i not in moved
+                        and abs((result[i].new_author_date.date() - current).days) <= 3
+                    ]
+                    if not candidates:
+                        current += timedelta(days=1)
+                        continue
+                    # Prefer lower-scoring commits (typos/configs, not refactors).
+                    candidates.sort(key=lambda i: result[i].score)
+                    n_to_move = rng.randint(1, min(3, len(candidates)))
                     to_move = candidates[:n_to_move]
 
                     for idx in to_move:
@@ -60,6 +74,7 @@ class WeekendModifier:
                         )
                         result[idx].new_author_date = new_time
                         result[idx].new_committer_date = new_time
+                        moved.add(idx)
 
             current += timedelta(days=1)
 

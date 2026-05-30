@@ -92,7 +92,7 @@ def _load_toml_file(path: Path) -> dict[str, Any]:
 
 def _config_to_toml(config: SpreaderConfig) -> dict[str, Any]:
     """Convert a SpreaderConfig to nested TOML structure."""
-    return {
+    data: dict[str, Any] = {
         "schedule": {
             "working_hours": {
                 "start": config.working_hours_start,
@@ -127,6 +127,15 @@ def _config_to_toml(config: SpreaderConfig) -> dict[str, Any]:
             "curve": config.curve,
         },
     }
+    # tomli_w cannot serialize None, so only emit author fields that are set.
+    author: dict[str, Any] = {}
+    if config.author_name is not None:
+        author["name"] = config.author_name
+    if config.author_email is not None:
+        author["email"] = config.author_email
+    if author:
+        data["author"] = author
+    return data
 
 
 def load_config(
@@ -165,14 +174,19 @@ def load_config(
     return SpreaderConfig(**base)
 
 
-def write_default_config(path: Path | None = None) -> Path:
-    """Write default config to the given path (or global config path)."""
+def write_config(config: SpreaderConfig, path: Path | None = None) -> Path:
+    """Write a config to the given path (or the global config path)."""
     target = path or GLOBAL_CONFIG_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
-    toml_data = _config_to_toml(DEFAULTS)
+    toml_data = _config_to_toml(config)
     with open(target, "wb") as f:
         tomli_w.dump(toml_data, f)
     return target
+
+
+def write_default_config(path: Path | None = None) -> Path:
+    """Write default config to the given path (or global config path)."""
+    return write_config(DEFAULTS, path)
 
 
 def show_config(config: SpreaderConfig) -> str:

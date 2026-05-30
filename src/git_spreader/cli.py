@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import random
 import subprocess
 from datetime import UTC, datetime
@@ -14,13 +15,19 @@ from rich.table import Table
 
 from git_spreader import __version__
 from git_spreader.backend.fast_export import FastExportImportBackend
-from git_spreader.config import load_config, show_config, write_default_config
+from git_spreader.config import (
+    GLOBAL_CONFIG_PATH,
+    load_config,
+    show_config,
+    write_config,
+    write_default_config,
+)
 from git_spreader.git_ops import (
     detect_gpg_signatures,
     detect_pushed_commits,
     enumerate_commits,
 )
-from git_spreader.models import ScheduledCommit, SpreaderConfig
+from git_spreader.models import ScheduledCommit, SpreaderConfig, _detect_local_timezone
 from git_spreader.profiles import PROFILES, get_profile
 from git_spreader.realism import apply_schedule_modifiers, apply_slot_modifiers
 from git_spreader.scheduling import (
@@ -125,8 +132,6 @@ def _run_pipeline(
     rng = random.Random(seed)
 
     # Warn if configured timezone differs from local system timezone
-    from git_spreader.models import _detect_local_timezone
-
     local_tz = _detect_local_timezone()
     if config.timezone != local_tz:
         console.print(
@@ -193,10 +198,13 @@ def _run_pipeline(
         console.print("[red]Error: no available time slots in the given range.[/red]")
         raise typer.Exit(1)
 
-    # Check if we need to compress
+    # Compress if total work time exceeds available slots. This can happen even
+    # with an auto end-date, because holiday/day-off removal strips slots after
+    # the end-date was estimated; without compression the overflow commits would
+    # all pile up at the end of the last slot.
     total_slot_minutes = sum(s.duration_minutes for s in slots)
     total_gap_minutes = sum(sc.gap_minutes for sc in scored)
-    if end and total_gap_minutes > total_slot_minutes:
+    if total_gap_minutes > total_slot_minutes:
         console.print(
             f"[yellow]Warning: total work time ({total_gap_minutes:.0f}m) exceeds "
             f"available time ({total_slot_minutes:.0f}m). Compressing gaps.[/yellow]"
@@ -273,6 +281,12 @@ def spread(
         None, "--profile", help=f"Use a built-in profile ({', '.join(sorted(PROFILES))})"
     ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
+    no_bundle: bool = typer.Option(
+        False, "--no-bundle", help="Skip creating a git bundle backup before rewriting"
+    ),
+    bundle_path: str | None = typer.Option(
+        None, "--bundle-path", help="Destination for the bundle backup (default: under .git)"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ) -> None:
     """Rewrite commit timestamps to spread across a realistic schedule."""
@@ -280,14 +294,43 @@ def spread(
         commit_range, start, end, working_hours, working_days, profile, seed, verbose
     )
 
+    # The fast-export/fast-import backend recreates the branch ref, so the range
+    # must end at the current branch tip (HEAD). enumerate_commits returns
+    # oldest-first, so the newest commit is last.
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if scheduled[-1].commit.sha != head_sha:
+        console.print(
+            "[red]Error: the commit range must end at the current branch tip (HEAD).[/red]\n"
+            "[red]Re-run with a range like 'HEAD~N..HEAD'.[/red]"
+        )
+        raise typer.Exit(1)
+
     # Show preview first
     _print_preview_table(scheduled)
     console.print()
 
-    # Create backup and rewrite
+    # Capture the pre-rewrite HEAD so the restore hint is exact.
+    old_head = head_sha
+
+    # Create a durable bundle backup before touching anything.
     backend = FastExportImportBackend()
-    backup_ref = backend.create_backup(repo_path, commit_range)
-    console.print(f"[dim]Backup created: {backup_ref}[/dim]")
+    bundle: Path | None = None
+    if not no_bundle:
+        bundle = backend.create_bundle(
+            repo_path, Path(bundle_path) if bundle_path else None
+        )
+        console.print(f"[dim]Bundle backup created: {bundle}[/dim]")
+
+    def _restore_hint() -> str:
+        if bundle is None:
+            return f"git reset --hard {old_head}"
+        return f"git fetch {bundle}\n  git reset --hard {old_head}"
 
     try:
         new_head = backend.rewrite(
@@ -299,10 +342,10 @@ def spread(
         )
         console.print(f"\n[green]Successfully rewrote {len(scheduled)} commits.[/green]")
         console.print(f"[green]New HEAD: {new_head}[/green]")
-        console.print(f"\n[dim]To undo: git reset --hard {backup_ref}[/dim]")
+        console.print(f"\n[dim]To undo:\n  {_restore_hint()}[/dim]")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error during rewrite: {e.stderr}[/red]")
-        console.print(f"[yellow]Restore with: git reset --hard {backup_ref}[/yellow]")
+        console.print(f"[yellow]Restore with:\n  {_restore_hint()}[/yellow]")
         raise typer.Exit(1)
 
 
@@ -335,17 +378,51 @@ def preview(
 def config(
     show: bool = typer.Option(False, "--show", help="Print current effective config"),
     reset: bool = typer.Option(False, "--reset", help="Reset config to defaults"),
+    edit: bool = typer.Option(False, "--edit", help="Open the global config in $EDITOR"),
 ) -> None:
     """Manage git-spreader configuration."""
     if reset:
         path = write_default_config()
         console.print(f"[green]Config reset to defaults at {path}[/green]")
+    elif edit:
+        if not GLOBAL_CONFIG_PATH.is_file():
+            write_default_config()
+        editor = os.environ.get("EDITOR", "vi")
+        try:
+            subprocess.run([editor, str(GLOBAL_CONFIG_PATH)], check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            console.print(f"[red]Error: could not open editor '{editor}': {e}[/red]")
+            raise typer.Exit(1)
     elif show:
         repo_path = _get_repo_path()
         cfg = load_config(repo_path)
         console.print(show_config(cfg))
     else:
-        console.print("Use --show or --reset. See git-spreader config --help.")
+        console.print("Use --show, --edit, or --reset. See git-spreader config --help.")
+
+
+@app.command()
+def init() -> None:
+    """Interactively create the global config file."""
+    console.print("[bold]Welcome to git-spreader![/bold] Let's set up your working schedule.\n")
+
+    working_hours = typer.prompt("What hours do you typically work?", default="09:00-17:00")
+    start_str, _, end_str = working_hours.partition("-")
+    working_days_str = typer.prompt("What days do you work?", default="Mon,Tue,Wed,Thu,Fri")
+    timezone = typer.prompt("Your timezone?", default=_detect_local_timezone())
+    allow_late_night = typer.confirm("Allow occasional late-night commits?", default=False)
+    allow_weekend = typer.confirm("Allow rare weekend commits?", default=False)
+
+    cfg = SpreaderConfig(
+        working_hours_start=start_str.strip() or "09:00",
+        working_hours_end=end_str.strip() or "17:00",
+        working_days=_parse_working_days(working_days_str),
+        timezone=timezone.strip(),
+        late_night_probability=0.05 if allow_late_night else 0.0,
+        weekend_probability=0.08 if allow_weekend else 0.0,
+    )
+    path = write_config(cfg)
+    console.print(f"\n[green]Config saved to {path}[/green]")
 
 
 @app.command()

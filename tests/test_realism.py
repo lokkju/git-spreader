@@ -6,7 +6,7 @@ import random
 from datetime import UTC, datetime, timedelta
 
 from git_spreader.models import ScheduledCommit, SpreaderConfig, TimeSlot
-from git_spreader.realism import apply_schedule_modifiers
+from git_spreader.realism import _enforce_monotonicity, apply_schedule_modifiers
 from git_spreader.realism.days_off import RandomDaysOffModifier
 from git_spreader.realism.flow_state import FlowStateModifier
 from git_spreader.realism.holidays import HolidayModifier
@@ -251,6 +251,54 @@ class TestWeekend:
                 f"Timestamp inversion at index {i}: "
                 f"{result[i - 1].new_author_date} > {result[i].new_author_date}"
             )
+
+    def test_no_commit_moved_to_two_weekend_days(self):
+        """A commit must not be relocated to more than one weekend day.
+
+        Regression: the modifier picked the same global-lowest commits for every
+        weekend day, so one commit could be 'moved' repeatedly and end up far
+        from its scheduled slot.
+        """
+        mod = WeekendModifier()
+        rng = random.Random(7)
+        config = SpreaderConfig(weekend_probability=1.0)
+        # Span several weeks so multiple weekends trigger.
+        base = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)  # Monday
+        scheduled = [
+            _make_scheduled(sha=f"c{i}", dt=base + timedelta(days=i), score=i / 30)
+            for i in range(30)
+        ]
+        original = {sc.commit.sha: sc.new_author_date for sc in scheduled}
+        result = mod.modify_schedule(scheduled, config, rng)
+
+        # Each moved commit must land within a few days of where it started, and
+        # at least one weekend commit should exist (so we know moves happened).
+        weekend_count = 0
+        for sc in result:
+            day = sc.new_author_date.date()
+            if day.weekday() in (5, 6):
+                weekend_count += 1
+            delta = abs((sc.new_author_date - original[sc.commit.sha]).days)
+            assert delta <= 7, (
+                f"{sc.commit.sha} moved {delta} days from its scheduled slot"
+            )
+        assert weekend_count > 0
+
+
+class TestEnforceMonotonicity:
+    def test_equal_timestamps_made_strictly_increasing(self):
+        """Identical timestamps must be separated, not left equal.
+
+        Equal author dates are ambiguous to order; the enforcement pass should
+        push later commits strictly after earlier ones.
+        """
+        dt = datetime(2025, 2, 3, 10, 0, tzinfo=UTC)
+        scheduled = [_make_scheduled(sha=f"c{i}", dt=dt) for i in range(4)]
+        result = _enforce_monotonicity(scheduled)
+        for i in range(1, len(result)):
+            assert result[i].new_author_date > result[i - 1].new_author_date
+            # committer date stays in lockstep with author date
+            assert result[i].new_committer_date == result[i].new_author_date
 
 
 class TestFullPipelineMonotonicity:

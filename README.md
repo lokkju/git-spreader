@@ -77,7 +77,9 @@ git-spreader spread HEAD~10..HEAD --start 2025-02-01 --profile side-project --wo
 ### Manage configuration
 
 ```bash
+git-spreader init             # interactive first-run setup
 git-spreader config --show    # print effective config
+git-spreader config --edit    # open the global config in $EDITOR
 git-spreader config --reset   # reset to defaults
 ```
 
@@ -114,11 +116,19 @@ All modifiers are individually configurable and can be disabled.
 
 ### Backup and undo
 
-Before rewriting, a backup ref is created at `refs/spreader-backup/<timestamp>`. To undo:
+Before rewriting, a standalone **git bundle** of all refs is created (by default
+under `.git/spreader-backups/<timestamp>.bundle`). Unlike a backup ref, a bundle
+survives `git gc`, `git reset --hard`, and even deletion of the repo, and can be
+moved off-machine. The exact restore command (including your pre-rewrite HEAD) is
+printed when the rewrite completes:
 
 ```bash
-git reset --hard refs/spreader-backup/<timestamp>
+git fetch .git/spreader-backups/<timestamp>.bundle
+git reset --hard <old-HEAD-sha>
 ```
+
+Use `--bundle-path PATH` to choose where the bundle is written, or `--no-bundle`
+to skip it (not recommended).
 
 ## Configuration
 

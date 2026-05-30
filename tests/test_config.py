@@ -112,3 +112,22 @@ def test_show_config():
     output = show_config(config)
     assert "working_hours" in output
     assert "09:00" in output
+
+
+def test_author_round_trips_through_show_config():
+    """An author override must survive serialization back to TOML.
+
+    Regression: _config_to_toml dropped the [author] section, so config --show
+    never reflected an author override.
+    """
+    config = SpreaderConfig(author_name="Ada Lovelace", author_email="ada@example.com")
+    output = show_config(config)
+    assert "Ada Lovelace" in output
+    assert "ada@example.com" in output
+
+
+def test_show_config_omits_author_when_unset():
+    """No [author] section is emitted when author fields are None (tomli_w
+    cannot serialize None)."""
+    output = show_config(SpreaderConfig())
+    assert "[author]" not in output
