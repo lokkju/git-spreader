@@ -322,9 +322,7 @@ def spread(
     backend = FastExportImportBackend()
     bundle: Path | None = None
     if not no_bundle:
-        bundle = backend.create_bundle(
-            repo_path, Path(bundle_path) if bundle_path else None
-        )
+        bundle = backend.create_bundle(repo_path, Path(bundle_path) if bundle_path else None)
         console.print(f"[dim]Bundle backup created: {bundle}[/dim]")
 
     def _restore_hint() -> str:

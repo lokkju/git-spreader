@@ -279,9 +279,7 @@ class TestWeekend:
             if day.weekday() in (5, 6):
                 weekend_count += 1
             delta = abs((sc.new_author_date - original[sc.commit.sha]).days)
-            assert delta <= 7, (
-                f"{sc.commit.sha} moved {delta} days from its scheduled slot"
-            )
+            assert delta <= 7, f"{sc.commit.sha} moved {delta} days from its scheduled slot"
         assert weekend_count > 0
 
 

@@ -143,9 +143,7 @@ def test_rewrite_changes_timestamps(temp_repo: Path, backend: FastExportImportBa
         assert parsed.month == 3
 
 
-def test_rewrite_matches_by_sha_not_position(
-    temp_repo: Path, backend: FastExportImportBackend
-):
+def test_rewrite_matches_by_sha_not_position(temp_repo: Path, backend: FastExportImportBackend):
     """Each commit's new date must be applied by SHA identity, not stream order.
 
     Build a schedule whose list order is the reverse of the export order and
@@ -185,9 +183,7 @@ def test_rewrite_matches_by_sha_not_position(
         assert by_subject[subject].author_date.date() == expected
 
 
-def test_rewrite_preserves_ancestor_history(
-    temp_repo: Path, backend: FastExportImportBackend
-):
+def test_rewrite_preserves_ancestor_history(temp_repo: Path, backend: FastExportImportBackend):
     """Rewriting a sub-range must not drop commits before the range base.
 
     Regression: fast-export of a range without --reference-excluded-parents
