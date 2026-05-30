@@ -64,13 +64,22 @@ class FastExportImportBackend:
         # Build a map from original SHA to new dates
         sha_to_schedule: dict[str, ScheduledCommit] = {sc.commit.sha: sc for sc in schedule}
 
-        # Export the commit range
+        # Export the commit range.
+        #   --show-original-ids       emits `original-oid <sha>` so we can match
+        #                             commits by identity rather than position.
+        #   --reference-excluded-parents emits a `from <sha>` on the first
+        #                             in-range commit, so ancestor history before
+        #                             the range base is preserved (without it,
+        #                             fast-import re-roots the branch and drops
+        #                             every commit before the range).
         export_stream = _run_git(
             repo_path,
             "fast-export",
             "--signed-tags=strip",
             "--no-data",
             "--reencode=yes",
+            "--show-original-ids",
+            "--reference-excluded-parents",
             commit_range,
         )
 
@@ -78,7 +87,6 @@ class FastExportImportBackend:
         modified_stream = self._transform_stream(
             export_stream,
             sha_to_schedule,
-            schedule,
             author_name,
             author_email,
         )
@@ -94,19 +102,19 @@ class FastExportImportBackend:
     def _transform_stream(
         self,
         stream: str,
-        sha_map: dict[str, ScheduledCommit],
-        schedule: list[ScheduledCommit],
+        sha_to_schedule: dict[str, ScheduledCommit],
         author_name: str | None,
         author_email: str | None,
     ) -> str:
         """Transform a fast-export stream, rewriting author/committer dates.
 
-        Matches commits by position in topological order since fast-export
-        outputs in the same order as our schedule.
+        Commits are matched by SHA via the ``original-oid <sha>`` lines emitted
+        by ``--show-original-ids``, so the schedule's ordering is irrelevant.
+        A commit whose SHA is not in the schedule is passed through unchanged.
         """
         lines = stream.split("\n")
         result_lines: list[str] = []
-        commit_idx = 0
+        current_sc: ScheduledCommit | None = None
 
         # Pattern for author/committer lines:
         # author Name <email> timestamp timezone
@@ -114,25 +122,26 @@ class FastExportImportBackend:
         author_pattern = re.compile(r"^(author|committer)\s+(.+?)\s+<(.+?)>\s+(\d+)\s+([+-]\d{4})$")
 
         for line in lines:
+            if line.startswith("original-oid "):
+                sha = line[len("original-oid ") :].strip()
+                current_sc = sha_to_schedule.get(sha)
+                result_lines.append(line)
+                continue
+
             match = author_pattern.match(line)
-            if match and commit_idx < len(schedule):
+            if match and current_sc is not None:
                 role = match.group(1)
                 name = match.group(2)
                 email = match.group(3)
 
-                sc = schedule[commit_idx]
                 if role == "author":
-                    new_date = sc.new_author_date
-                    if author_name:
-                        name = author_name
-                    if author_email:
-                        email = author_email
+                    new_date = current_sc.new_author_date
                 else:  # committer
-                    new_date = sc.new_committer_date
-                    if author_name:
-                        name = author_name
-                    if author_email:
-                        email = author_email
+                    new_date = current_sc.new_committer_date
+                if author_name:
+                    name = author_name
+                if author_email:
+                    email = author_email
 
                 # Convert datetime to unix timestamp + timezone offset
                 ts = int(new_date.timestamp())
@@ -141,10 +150,6 @@ class FastExportImportBackend:
                 tz_str = _format_tz_offset(utc_offset) if utc_offset is not None else "+0000"
 
                 result_lines.append(f"{role} {name} <{email}> {ts} {tz_str}")
-
-                # Advance commit index after processing the committer line
-                if role == "committer":
-                    commit_idx += 1
             else:
                 result_lines.append(line)
 

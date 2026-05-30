@@ -89,6 +89,89 @@ def test_rewrite_changes_timestamps(temp_repo: Path, backend: FastExportImportBa
         assert parsed.month == 3
 
 
+def test_rewrite_matches_by_sha_not_position(
+    temp_repo: Path, backend: FastExportImportBackend
+):
+    """Each commit's new date must be applied by SHA identity, not stream order.
+
+    Build a schedule whose list order is the reverse of the export order and
+    give each commit a distinct date; after rewriting, every commit must carry
+    the date assigned to its own SHA.
+    """
+    commits = enumerate_commits(temp_repo, "HEAD~3..HEAD")
+    assert len(commits) == 3
+
+    # Assign a unique, identifiable date per SHA.
+    sha_to_date = {
+        commits[0].sha: datetime(2025, 4, 1, 9, 0, tzinfo=UTC),
+        commits[1].sha: datetime(2025, 4, 2, 9, 0, tzinfo=UTC),
+        commits[2].sha: datetime(2025, 4, 3, 9, 0, tzinfo=UTC),
+    }
+    # Schedule list deliberately in reverse order relative to the export order.
+    schedule = [
+        ScheduledCommit(
+            commit=c,
+            score=0.5,
+            gap_minutes=30,
+            new_author_date=sha_to_date[c.sha],
+            new_committer_date=sha_to_date[c.sha],
+        )
+        for c in reversed(commits)
+    ]
+
+    backend.rewrite(temp_repo, "HEAD~3..HEAD", schedule)
+
+    # Read back (sha, author-date) pairs and verify each SHA kept its own date.
+    rewritten = enumerate_commits(temp_repo, "HEAD~3..HEAD")
+    # Match by subject since SHAs change after rewrite, but order is stable.
+    by_subject = {c.subject: c for c in rewritten}
+    original_by_subject = {c.subject: c for c in commits}
+    for subject, orig in original_by_subject.items():
+        expected = sha_to_date[orig.sha].date()
+        assert by_subject[subject].author_date.date() == expected
+
+
+def test_rewrite_preserves_ancestor_history(
+    temp_repo: Path, backend: FastExportImportBackend
+):
+    """Rewriting a sub-range must not drop commits before the range base.
+
+    Regression: fast-export of a range without --reference-excluded-parents
+    re-roots the branch on import, truncating all ancestor history.
+    """
+    before = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD"],
+        cwd=temp_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    total_before = int(before.stdout.strip())  # 5 commits in the fixture
+
+    commits = enumerate_commits(temp_repo, "HEAD~3..HEAD")
+    new_date = datetime(2025, 7, 1, 12, 0, tzinfo=UTC)
+    schedule = [
+        ScheduledCommit(
+            commit=c,
+            score=0.5,
+            gap_minutes=30,
+            new_author_date=new_date,
+            new_committer_date=new_date,
+        )
+        for c in commits
+    ]
+    backend.rewrite(temp_repo, "HEAD~3..HEAD", schedule)
+
+    after = subprocess.run(
+        ["git", "rev-list", "--count", "HEAD"],
+        cwd=temp_repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert int(after.stdout.strip()) == total_before
+
+
 def test_rewrite_preserves_content(temp_repo: Path, backend: FastExportImportBackend):
     """Verify that file content is unchanged after rewriting."""
     # Check content before
