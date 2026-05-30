@@ -5,6 +5,7 @@ on:
     branches: ["**"] # All branches, not tags
   pull_request:
     branches: [main]
+  workflow_call: # invoked by release.yml to gate publishing
 
 permissions:
   contents: read

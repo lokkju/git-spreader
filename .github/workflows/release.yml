@@ -32,8 +32,17 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  publish:
+  # Full CI (lint + format + pyright + test matrix + build) gates the publish.
+  # If anything here fails, the publish job below is skipped and nothing ships.
+  ci:
     needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/test.yml
+
+  publish:
+    needs: [release-please, ci]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     environment:
@@ -52,11 +61,6 @@ jobs:
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
         with:
           python-version: "3.11"
-
-      - name: Verify tests pass on the tagged commit
-        run: |
-          uv sync --locked --dev
-          uv run pytest tests -q
 
       - name: Build
         run: uv build
