@@ -42,6 +42,37 @@ def test_config_show(temp_repo: Path, monkeypatch):
     assert "09:00" in result.output
 
 
+def test_init_writes_config(tmp_path: Path, monkeypatch):
+    cfg_path = tmp_path / "config.toml"
+    monkeypatch.setattr("git_spreader.config.GLOBAL_CONFIG_PATH", cfg_path)
+    result = runner.invoke(
+        app,
+        ["init"],
+        input="08:00-16:00\nMon,Tue,Wed\nAsia/Tokyo\ny\nn\n",
+    )
+    assert result.exit_code == 0
+    assert cfg_path.is_file()
+    text = cfg_path.read_text()
+    assert "08:00" in text
+    assert "16:00" in text
+    assert "Asia/Tokyo" in text
+    # Late-night allowed (y) -> nonzero; weekend declined (n) -> zero.
+    assert "late_night_probability = 0.05" in text
+    assert "weekend_probability = 0.0" in text
+
+
+def test_config_edit_opens_editor(tmp_path: Path, monkeypatch):
+    cfg_path = tmp_path / "config.toml"
+    monkeypatch.setattr("git_spreader.config.GLOBAL_CONFIG_PATH", cfg_path)
+    monkeypatch.setattr("git_spreader.cli.GLOBAL_CONFIG_PATH", cfg_path)
+    # `true` ignores its arguments and exits 0, standing in for an editor.
+    monkeypatch.setenv("EDITOR", "true")
+    result = runner.invoke(app, ["config", "--edit"])
+    assert result.exit_code == 0
+    # The file is created with defaults before the editor opens.
+    assert cfg_path.is_file()
+
+
 def test_config_reset(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path))
     # Need to also be in a valid git repo for config --reset

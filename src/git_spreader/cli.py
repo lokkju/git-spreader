@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import random
 import subprocess
 from datetime import UTC, datetime
@@ -14,13 +15,19 @@ from rich.table import Table
 
 from git_spreader import __version__
 from git_spreader.backend.fast_export import FastExportImportBackend
-from git_spreader.config import load_config, show_config, write_default_config
+from git_spreader.config import (
+    GLOBAL_CONFIG_PATH,
+    load_config,
+    show_config,
+    write_config,
+    write_default_config,
+)
 from git_spreader.git_ops import (
     detect_gpg_signatures,
     detect_pushed_commits,
     enumerate_commits,
 )
-from git_spreader.models import ScheduledCommit, SpreaderConfig
+from git_spreader.models import ScheduledCommit, SpreaderConfig, _detect_local_timezone
 from git_spreader.profiles import PROFILES, get_profile
 from git_spreader.realism import apply_schedule_modifiers, apply_slot_modifiers
 from git_spreader.scheduling import (
@@ -125,8 +132,6 @@ def _run_pipeline(
     rng = random.Random(seed)
 
     # Warn if configured timezone differs from local system timezone
-    from git_spreader.models import _detect_local_timezone
-
     local_tz = _detect_local_timezone()
     if config.timezone != local_tz:
         console.print(
@@ -373,17 +378,51 @@ def preview(
 def config(
     show: bool = typer.Option(False, "--show", help="Print current effective config"),
     reset: bool = typer.Option(False, "--reset", help="Reset config to defaults"),
+    edit: bool = typer.Option(False, "--edit", help="Open the global config in $EDITOR"),
 ) -> None:
     """Manage git-spreader configuration."""
     if reset:
         path = write_default_config()
         console.print(f"[green]Config reset to defaults at {path}[/green]")
+    elif edit:
+        if not GLOBAL_CONFIG_PATH.is_file():
+            write_default_config()
+        editor = os.environ.get("EDITOR", "vi")
+        try:
+            subprocess.run([editor, str(GLOBAL_CONFIG_PATH)], check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            console.print(f"[red]Error: could not open editor '{editor}': {e}[/red]")
+            raise typer.Exit(1)
     elif show:
         repo_path = _get_repo_path()
         cfg = load_config(repo_path)
         console.print(show_config(cfg))
     else:
-        console.print("Use --show or --reset. See git-spreader config --help.")
+        console.print("Use --show, --edit, or --reset. See git-spreader config --help.")
+
+
+@app.command()
+def init() -> None:
+    """Interactively create the global config file."""
+    console.print("[bold]Welcome to git-spreader![/bold] Let's set up your working schedule.\n")
+
+    working_hours = typer.prompt("What hours do you typically work?", default="09:00-17:00")
+    start_str, _, end_str = working_hours.partition("-")
+    working_days_str = typer.prompt("What days do you work?", default="Mon,Tue,Wed,Thu,Fri")
+    timezone = typer.prompt("Your timezone?", default=_detect_local_timezone())
+    allow_late_night = typer.confirm("Allow occasional late-night commits?", default=False)
+    allow_weekend = typer.confirm("Allow rare weekend commits?", default=False)
+
+    cfg = SpreaderConfig(
+        working_hours_start=start_str.strip() or "09:00",
+        working_hours_end=end_str.strip() or "17:00",
+        working_days=_parse_working_days(working_days_str),
+        timezone=timezone.strip(),
+        late_night_probability=0.05 if allow_late_night else 0.0,
+        weekend_probability=0.08 if allow_weekend else 0.0,
+    )
+    path = write_config(cfg)
+    console.print(f"\n[green]Config saved to {path}[/green]")
 
 
 @app.command()
