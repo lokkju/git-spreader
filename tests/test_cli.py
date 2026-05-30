@@ -120,6 +120,32 @@ def test_profile_unknown(temp_repo: Path, monkeypatch):
     assert "unknown profile" in result.output.lower()
 
 
+def test_auto_end_overflow_compresses(temp_repo: Path, monkeypatch):
+    """With an auto end-date, slot removal that causes overflow must compress.
+
+    Regression: compression only ran when --end was passed, so an auto end-date
+    that lost slots to days-off/holidays piled commits at the last slot's end.
+    """
+    config_path = temp_repo / ".git-spreader.toml"
+    config_path.write_text("[realism]\nrandom_day_off_probability = 0.95\n")
+    monkeypatch.chdir(temp_repo)
+    result = runner.invoke(
+        app,
+        [
+            "preview",
+            "HEAD~4..HEAD",
+            "--start",
+            "2025-03-03",
+            "--seed",
+            "1",
+            "--working-hours",
+            "09:00-10:00",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "compressing" in result.output.lower()
+
+
 def test_spread_rejects_non_head_range(temp_repo: Path, monkeypatch):
     """spread must refuse a range that does not end at HEAD (would truncate)."""
     monkeypatch.chdir(temp_repo)

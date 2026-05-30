@@ -193,10 +193,13 @@ def _run_pipeline(
         console.print("[red]Error: no available time slots in the given range.[/red]")
         raise typer.Exit(1)
 
-    # Check if we need to compress
+    # Compress if total work time exceeds available slots. This can happen even
+    # with an auto end-date, because holiday/day-off removal strips slots after
+    # the end-date was estimated; without compression the overflow commits would
+    # all pile up at the end of the last slot.
     total_slot_minutes = sum(s.duration_minutes for s in slots)
     total_gap_minutes = sum(sc.gap_minutes for sc in scored)
-    if end and total_gap_minutes > total_slot_minutes:
+    if total_gap_minutes > total_slot_minutes:
         console.print(
             f"[yellow]Warning: total work time ({total_gap_minutes:.0f}m) exceeds "
             f"available time ({total_slot_minutes:.0f}m). Compressing gaps.[/yellow]"
