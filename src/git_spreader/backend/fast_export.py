@@ -5,9 +5,8 @@ from __future__ import annotations
 import re
 import subprocess
 import time
-from pathlib import Path
-
 from datetime import timedelta
+from pathlib import Path
 
 from git_spreader.models import ScheduledCommit
 
@@ -41,12 +40,27 @@ def _run_git(repo_path: Path, *args: str, input_data: str | None = None) -> str:
 class FastExportImportBackend:
     """Rewrite backend using git fast-export and fast-import."""
 
-    def create_backup(self, repo_path: Path, commit_range: str) -> str:
-        """Create a backup ref pointing to current HEAD."""
-        timestamp = int(time.time())
-        ref_name = f"refs/spreader-backup/{timestamp}"
-        _run_git(repo_path, "update-ref", ref_name, "HEAD")
-        return ref_name
+    def create_bundle(self, repo_path: Path, bundle_path: Path | None = None) -> Path:
+        """Create a standalone git bundle of all refs as a durable backup.
+
+        Unlike a backup ref, a bundle is a self-contained file: it survives
+        ``git gc``, ``git reset --hard``, and even deletion of the repo, and can
+        be moved off-machine. Defaults to
+        ``<git-dir>/spreader-backups/<unix-ts>.bundle``.
+
+        Args:
+            repo_path: Path to the git repository.
+            bundle_path: Optional explicit destination for the bundle file.
+
+        Returns:
+            The path to the created bundle.
+        """
+        if bundle_path is None:
+            git_dir = Path(_run_git(repo_path, "rev-parse", "--absolute-git-dir").strip())
+            bundle_path = git_dir / "spreader-backups" / f"{int(time.time())}.bundle"
+        bundle_path.parent.mkdir(parents=True, exist_ok=True)
+        _run_git(repo_path, "bundle", "create", str(bundle_path), "--all")
+        return bundle_path
 
     def rewrite(
         self,
@@ -58,8 +72,8 @@ class FastExportImportBackend:
     ) -> str:
         """Rewrite commit timestamps via fast-export | transform | fast-import.
 
-        Commits in the fast-export stream are in topological order, matching
-        our schedule list by position.
+        Commits in the stream are matched to the schedule by SHA (via
+        ``original-oid``), so the schedule order does not matter.
         """
         # Build a map from original SHA to new dates
         sha_to_schedule: dict[str, ScheduledCommit] = {sc.commit.sha: sc for sc in schedule}

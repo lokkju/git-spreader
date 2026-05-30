@@ -34,17 +34,71 @@ def backend():
     return FastExportImportBackend()
 
 
-def test_create_backup(temp_repo: Path, backend: FastExportImportBackend):
-    ref = backend.create_backup(temp_repo, "HEAD~2..HEAD")
-    assert ref.startswith("refs/spreader-backup/")
-    # Verify the ref exists
-    result = subprocess.run(
-        ["git", "rev-parse", ref],
+def _head_sha(repo: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def test_create_bundle(temp_repo: Path, backend: FastExportImportBackend):
+    bundle = backend.create_bundle(temp_repo)
+    assert bundle.is_file()
+    assert bundle.suffix == ".bundle"
+    # Default location is under the git dir, not the working tree.
+    assert "spreader-backups" in bundle.parts
+    # The bundle is valid.
+    verify = subprocess.run(
+        ["git", "bundle", "verify", str(bundle)],
         cwd=temp_repo,
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 0
+    assert verify.returncode == 0
+
+
+def test_create_bundle_custom_path(
+    temp_repo: Path, backend: FastExportImportBackend, tmp_path: Path
+):
+    dest = tmp_path / "backups" / "my.bundle"
+    bundle = backend.create_bundle(temp_repo, bundle_path=dest)
+    assert bundle == dest
+    assert dest.is_file()
+
+
+def test_bundle_restores_original_history(temp_repo: Path, backend: FastExportImportBackend):
+    """A bundle taken before a rewrite must restore the original commits."""
+    original_head = _head_sha(temp_repo)
+    bundle = backend.create_bundle(temp_repo)
+
+    # Rewrite to mangle history.
+    commits = enumerate_commits(temp_repo, "HEAD~3..HEAD")
+    new_date = datetime(2025, 9, 1, 12, 0, tzinfo=UTC)
+    schedule = [
+        ScheduledCommit(
+            commit=c,
+            score=0.5,
+            gap_minutes=30,
+            new_author_date=new_date,
+            new_committer_date=new_date,
+        )
+        for c in commits
+    ]
+    backend.rewrite(temp_repo, "HEAD~3..HEAD", schedule)
+    assert _head_sha(temp_repo) != original_head
+
+    # Restore: re-import objects from the bundle, then reset to the old SHA.
+    subprocess.run(["git", "fetch", str(bundle)], cwd=temp_repo, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "reset", "--hard", original_head],
+        cwd=temp_repo,
+        capture_output=True,
+        check=True,
+    )
+    assert _head_sha(temp_repo) == original_head
 
 
 def test_rewrite_changes_timestamps(temp_repo: Path, backend: FastExportImportBackend):
@@ -68,7 +122,7 @@ def test_rewrite_changes_timestamps(temp_repo: Path, backend: FastExportImportBa
         for c, d in zip(commits, new_dates)
     ]
 
-    backend.create_backup(temp_repo, "HEAD~3..HEAD")
+    backend.create_bundle(temp_repo)
     new_head = backend.rewrite(temp_repo, "HEAD~3..HEAD", schedule)
     assert new_head
 
@@ -193,7 +247,7 @@ def test_rewrite_preserves_content(temp_repo: Path, backend: FastExportImportBac
         for c in commits
     ]
 
-    backend.create_backup(temp_repo, "HEAD~2..HEAD")
+    backend.create_bundle(temp_repo)
     backend.rewrite(temp_repo, "HEAD~2..HEAD", schedule)
 
     # Check content after

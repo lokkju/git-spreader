@@ -120,6 +120,17 @@ def test_profile_unknown(temp_repo: Path, monkeypatch):
     assert "unknown profile" in result.output.lower()
 
 
+def test_spread_rejects_non_head_range(temp_repo: Path, monkeypatch):
+    """spread must refuse a range that does not end at HEAD (would truncate)."""
+    monkeypatch.chdir(temp_repo)
+    result = runner.invoke(
+        app,
+        ["spread", "HEAD~3..HEAD~1", "--start", "2025-03-01", "--seed", "42"],
+    )
+    assert result.exit_code == 1
+    assert "branch tip" in result.output.lower() or "head" in result.output.lower()
+
+
 def test_default_timezone_is_local():
     """Default timezone should be the system's local timezone, not hardcoded.
 

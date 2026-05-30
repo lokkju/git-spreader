@@ -273,6 +273,12 @@ def spread(
         None, "--profile", help=f"Use a built-in profile ({', '.join(sorted(PROFILES))})"
     ),
     seed: int | None = typer.Option(None, "--seed", help="Random seed for reproducibility"),
+    no_bundle: bool = typer.Option(
+        False, "--no-bundle", help="Skip creating a git bundle backup before rewriting"
+    ),
+    bundle_path: str | None = typer.Option(
+        None, "--bundle-path", help="Destination for the bundle backup (default: under .git)"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output"),
 ) -> None:
     """Rewrite commit timestamps to spread across a realistic schedule."""
@@ -280,14 +286,43 @@ def spread(
         commit_range, start, end, working_hours, working_days, profile, seed, verbose
     )
 
+    # The fast-export/fast-import backend recreates the branch ref, so the range
+    # must end at the current branch tip (HEAD). enumerate_commits returns
+    # oldest-first, so the newest commit is last.
+    head_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    if scheduled[-1].commit.sha != head_sha:
+        console.print(
+            "[red]Error: the commit range must end at the current branch tip (HEAD).[/red]\n"
+            "[red]Re-run with a range like 'HEAD~N..HEAD'.[/red]"
+        )
+        raise typer.Exit(1)
+
     # Show preview first
     _print_preview_table(scheduled)
     console.print()
 
-    # Create backup and rewrite
+    # Capture the pre-rewrite HEAD so the restore hint is exact.
+    old_head = head_sha
+
+    # Create a durable bundle backup before touching anything.
     backend = FastExportImportBackend()
-    backup_ref = backend.create_backup(repo_path, commit_range)
-    console.print(f"[dim]Backup created: {backup_ref}[/dim]")
+    bundle: Path | None = None
+    if not no_bundle:
+        bundle = backend.create_bundle(
+            repo_path, Path(bundle_path) if bundle_path else None
+        )
+        console.print(f"[dim]Bundle backup created: {bundle}[/dim]")
+
+    def _restore_hint() -> str:
+        if bundle is None:
+            return f"git reset --hard {old_head}"
+        return f"git fetch {bundle}\n  git reset --hard {old_head}"
 
     try:
         new_head = backend.rewrite(
@@ -299,10 +334,10 @@ def spread(
         )
         console.print(f"\n[green]Successfully rewrote {len(scheduled)} commits.[/green]")
         console.print(f"[green]New HEAD: {new_head}[/green]")
-        console.print(f"\n[dim]To undo: git reset --hard {backup_ref}[/dim]")
+        console.print(f"\n[dim]To undo:\n  {_restore_hint()}[/dim]")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Error during rewrite: {e.stderr}[/red]")
-        console.print(f"[yellow]Restore with: git reset --hard {backup_ref}[/yellow]")
+        console.print(f"[yellow]Restore with:\n  {_restore_hint()}[/yellow]")
         raise typer.Exit(1)
 
 
